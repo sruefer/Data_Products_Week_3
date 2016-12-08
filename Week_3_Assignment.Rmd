@@ -1,0 +1,97 @@
+---
+title: "Week 3 Assignment"
+subtitle: Finding Outliers in Housing Prices
+author: "Steffen Ruefer"
+date: "8 December 2016"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE, cache=TRUE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+
+# Load the data
+train <- read.csv("train.csv")
+train <- train %>%
+      select(SalePrice, LotArea, GrLivArea, GarageYrBlt, LotFrontage)
+train <- train[complete.cases(train),]
+```
+
+## Housing Data
+
+For this presentation I am using housing data from a Kaggle competition. For details, see <https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data>.
+
+Some of the data is shown below:
+
+```{r}
+head(train)
+```
+
+## Outliers
+
+Outliers cause problems with building the prediction model. The variable to predict is **SalePrice**.
+
+```{r, echo=FALSE, message=FALSE}
+# Scatterplot
+library(ggplot2)
+library(plotly)
+
+# Scatterplot
+p <- ggplot(train, aes(x = LotArea, y = SalePrice/1000)) + 
+      geom_point(size = 3, alpha = 0.4) + 
+      labs(title = "LotArea",
+           subtitle = "Lot size in square feet vs. SalePrice") +
+      ylab("SalePrice in kUSD")
+
+ggplotly(p)
+```
+
+## Outlier Detection
+
+Outliers need to be detected without using **SalePrice**. We try to find them by using **Mahalanobis
+distance** calculation.
+
+```{r, message=FALSE}
+
+m_dist <- mahalanobis(train[, -1], 
+                      colMeans(train[, -1]), 
+                      cov(train[, -1]))
+train$m_dist <- round(m_dist, 1)
+head(train)
+```
+
+## Outlier Detection (cont.)
+
+We define a threshold for Mahalanobis distance. Above the threshold, the observation is defined as outlier.
+
+```{r}
+train$Outlier <- 0
+train$Outlier[train$m_dist >= 35] <- 1
+sum(train$Outlier)
+```
+
+There were 7 outliers detected by using a threshold of 35. This needs some experimenting to reduce
+the number of false positives.
+
+## Outlier Plot
+
+```{r, message=FALSE, echo=FALSE}
+train$Outlier <- as.factor(train$Outlier)
+p <- ggplot(train, aes(x = LotArea, y = SalePrice/1000, color = Outlier)) + 
+      geom_point(size = 3, alpha = 0.4) + 
+      labs(title = "LotArea with Outliers",
+           subtitle = "Lot size in square feet vs. SalePrice") +
+      ylab("SalePrice in kUSD") +
+      guides(fill=guide_legend(title=NULL))
+
+ggplotly(p)
+```
+
+## Conclusion
+
+Mahalanobis distance calculation can be used to detect outliers without using the variable that 
+needs to be predicted. However, be mindful about:
+
+- Do not use too many variables
+- Experimenting with the threshold
+- It does not work with non-linear data
